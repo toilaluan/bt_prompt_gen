@@ -5,6 +5,8 @@ from typing import List
 import numpy as np
 import random
 from pydantic import BaseModel
+import uvicorn
+import argparse
 
 
 def seed_everything(seed):
@@ -40,6 +42,7 @@ async def get_rewards(data: Data):
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=10001)
+    args = parser.parse_args()
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
