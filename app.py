@@ -1,7 +1,5 @@
 from transformers import pipeline
 from fastapi import FastAPI, Request, Response, Depends
-from fastapi_limiter import FastAPILimiter
-from fastapi_limiter.depends import RateLimiter
 import torch
 from typing import List
 import numpy as np
@@ -12,6 +10,10 @@ import argparse
 import requests
 import time
 import threading
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+
 
 
 def seed_everything(seed):
@@ -31,9 +33,13 @@ class Data(BaseModel):
 
 
 app = FastAPI()
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 generator = pipeline(model="Gustavosta/MagicPrompt-Stable-Diffusion", device="cuda")
 @app.middleware("http")
+@limiter.limit("30/minute")
 async def filter_allowed_ips(request: Request, call_next):
     print(str(request.url))
     if (request.client.host not in ALLOWED_IPS) and (request.client.host != "127.0.0.1"):
@@ -42,7 +48,7 @@ async def filter_allowed_ips(request: Request, call_next):
     response = await call_next(request)
     return response
 
-@app.post("/prompt_generate", dependencies=[Depends(RateLimiter(times=30, seconds=60))])
+@app.post("/prompt_generate")
 async def get_rewards(data: Data):
     seed_everything(data.seed)
     prompt = generator(
